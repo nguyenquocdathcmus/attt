@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose *)",
+      "Bash(docker --version)",
+      "Bash(npm --version)",
+      "Bash(curl -s -o /dev/null -w \"API health: %{http_code}\\\\n\" http://localhost:8000/api/v1/health)",
+      "Bash(curl -s -o /dev/null -w \"Web app: %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(curl -s -o /dev/null -w \"API docs: %{http_code}\\\\n\" http://localhost:8000/api/v1/docs)",
+      "Bash(curl -s -o /dev/null -w \"Prometheus: %{http_code}\\\\n\" http://localhost:9090)",
+      "Bash(curl -s http://localhost:8000/api/v1/health)",
+      "Bash(curl -s -o /dev/null -w \"Web: %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(docker volume *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/auth/token -d \"username=admin&password=admin123\" -H \"Content-Type: application/x-www-form-urlencoded\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Total: {len\\(d\\)}'\\); [print\\(f\\\\\"  [{f['severity']}] {f['title'][:80]}\\\\\"\\) for f in d]\")"
+    ]
+  }
+}

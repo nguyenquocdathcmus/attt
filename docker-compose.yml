@@ -1,0 +1,123 @@
+version: "3.9"
+
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: secdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    ports:
+      - "8080:8080"
+    command:
+      [
+        "zap.sh", "-daemon",
+        "-host", "0.0.0.0",
+        "-port", "8080",
+        "-config", "api.disablekey=true",
+        "-config", "api.addrs.addr.name=.*",
+        "-config", "api.addrs.addr.regex=true"
+      ]
+
+  api:
+    build: ./be
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://user:pass@db:5432/secdb
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3
+      - EMBEDDINGS_MODEL=nomic-embed-text
+      - ZAP_BASE_URL=http://zap:8080
+      - JWT_SECRET=dev-secret
+      - AUTH_ENABLED=true
+      - LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+      - ollama
+      - zap
+    volumes:
+      - ./be/app:/app/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: ./be
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://user:pass@db:5432/secdb
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3
+      - EMBEDDINGS_MODEL=nomic-embed-text
+      - ZAP_BASE_URL=http://zap:8080
+      - JWT_SECRET=dev-secret
+      - AUTH_ENABLED=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - db
+      - redis
+      - ollama
+      - zap
+    volumes:
+      - ./be/app:/app/app
+    command: ["celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
+
+  web:
+    build: ./web
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_TELEMETRY_DISABLED=1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  ollama_data:
+  prometheus_data:
