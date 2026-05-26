@@ -1,4 +1,3 @@
-import json
 import logging
 
 from app.services.ai.ollama_client import generate as _llm
@@ -53,10 +52,11 @@ def _template(finding: dict) -> dict:
 def _batch_remediate(findings: list[dict]) -> dict[int, dict]:
     """Returns {original_index: remediation_dict}."""
     try:
+        from app.schemas.ai_output import RemediationItem, parse_llm_json_list
+
         raw = _llm(_build_batch_prompt(findings))
-        cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        results = json.loads(cleaned)
-        return {item["index"]: item for item in results}
+        items = parse_llm_json_list(raw, RemediationItem)
+        return {item.index: item.model_dump() for item in items}
     except Exception as exc:
         logger.warning("Batch remediation LLM failed: %s", exc)
         return {}

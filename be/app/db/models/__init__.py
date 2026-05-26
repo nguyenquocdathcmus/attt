@@ -4,6 +4,7 @@ from app.db.models.finding import Finding
 from app.db.models.knowledge_doc import KnowledgeDoc
 from app.db.models.report import Report
 from app.db.models.scan import Scan
+from app.db.models.user import User
 
 __all__ = [
     "Asset",
@@ -12,4 +13,5 @@ __all__ = [
     "KnowledgeDoc",
     "Report",
     "Scan",
+    "User",
 ]

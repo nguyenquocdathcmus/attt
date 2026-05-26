@@ -1,17 +1,11 @@
-import httpx
+"""
+Thin compatibility shim — delegates to LLMGateway.
 
-from app.core.config import settings
+All existing callers (cwe_mapper, cvss_scorer, etc.) continue to work
+unchanged while automatically gaining cache, retry, and telemetry.
+"""
+from app.services.ai.gateway import get_gateway
 
 
 def generate(prompt: str, model: str | None = None) -> str:
-    payload = {
-        "model": model or settings.ollama_model,
-        "prompt": prompt,
-        "stream": False,
-    }
-    response = httpx.post(
-        f"{settings.ollama_base_url}/api/generate", json=payload, timeout=60
-    )
-    response.raise_for_status()
-    data = response.json()
-    return data.get("response", "").strip()
+    return get_gateway().generate(prompt, model=model)

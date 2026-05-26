@@ -4,7 +4,15 @@
       "Bash(docker stats *)",
       "Bash(docker restart *)",
       "Bash(docker exec *)",
-      "Bash(curl -s \"http://localhost:8080/JSON/core/view/version/\")"
+      "Bash(curl -s \"http://localhost:8080/JSON/core/view/version/\")",
+      "Bash(chmod +x /Users/macone/Documents/projects/personal/attt/be/entrypoint.sh)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 show *)",
+      "Bash(find /usr/local /opt /Users/macone -name \"pydantic\" -type d 2>/dev/null | head -5 && \\\\ *)",
+      "Read(//usr/local/**)",
+      "Bash(/Users/macone/Documents/projects/personal/mytools/.venv/bin/python -c ' *)",
+      "Bash(chmod +x /Users/macone/Documents/projects/personal/attt/start.sh)",
+      "Bash(bash -c 'docker info 2>&1 | tail -5; echo \"exit=$?\"')"
     ]
   }
 }

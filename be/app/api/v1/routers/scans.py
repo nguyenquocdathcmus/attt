@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -70,6 +71,27 @@ def get_scan(
     return scan
 
 
+@router.post("/{scan_id}/cancel", response_model=ScanOut)
+def cancel_scan(
+    scan_id: UUID,
+    db: Session = Depends(get_db),
+    _user: object = Depends(require_roles(ANALYST_ROLES)),
+) -> Scan:
+    scan = db.get(Scan, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.status not in ("queued", "running"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot cancel a scan with status '{scan.status}'",
+        )
+    scan.status = "cancelled"
+    scan.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(scan)
+    return scan
+
+
 @router.websocket("/{scan_id}/ws")
 async def scan_ws(
     scan_id: UUID,
@@ -116,7 +138,7 @@ async def scan_ws(
                     "finished_at": scan.finished_at.isoformat() if scan.finished_at else None,
                 })
 
-                if scan.status in ("completed", "failed"):
+                if scan.status in ("completed", "failed", "cancelled"):
                     break
             finally:
                 session.close()

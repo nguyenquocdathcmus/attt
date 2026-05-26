@@ -1,4 +1,3 @@
-import json
 import logging
 
 from app.services.ai.ollama_client import generate
@@ -33,13 +32,14 @@ def analyze(findings: list[dict]) -> list[dict]:
         return findings
 
     try:
+        from app.schemas.ai_output import FalsePositiveItem, parse_llm_json_list
+
         raw = generate(_build_batch_prompt(findings))
-        cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        results = json.loads(cleaned)
-        score_map = {item["index"]: float(item["false_positive_score"]) for item in results}
+        items = parse_llm_json_list(raw, FalsePositiveItem)
+        score_map = {item.index: item.false_positive_score for item in items}
         for i, f in enumerate(findings):
             if i in score_map:
-                f["false_positive_score"] = max(0.0, min(1.0, score_map[i]))
+                f["false_positive_score"] = score_map[i]
     except Exception as exc:
         logger.warning("Batch FP analysis failed: %s", exc)
 

@@ -1,4 +1,3 @@
-import json
 import logging
 
 from app.services.ai.ollama_client import generate
@@ -45,13 +44,14 @@ def prioritize(findings: list[dict]) -> list[dict]:
         return findings
 
     try:
+        from app.schemas.ai_output import RiskItem, parse_llm_json_list
+
         raw = generate(_build_batch_prompt(llm_targets))
-        cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        results = json.loads(cleaned)
-        score_map = {item["index"]: float(item["risk_score"]) for item in results}
+        items = parse_llm_json_list(raw, RiskItem)
+        score_map = {item.index: item.risk_score for item in items}
         for i, f in enumerate(llm_targets):
             if i in score_map:
-                f["risk_score"] = max(0.0, min(1.0, score_map[i]))
+                f["risk_score"] = score_map[i]
     except Exception as exc:
         logger.warning("Batch risk scoring failed: %s", exc)
 

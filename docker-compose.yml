@@ -1,5 +1,8 @@
 version: "3.9"
 
+# BuildKit bật sẵn trong Docker Desktop >= 23.
+# Nếu dùng Docker Engine cũ, export DOCKER_BUILDKIT=1 trước khi chạy.
+
 services:
   db:
     image: pgvector/pgvector:pg15
@@ -12,6 +15,11 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d secdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
@@ -59,12 +67,19 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
-      - redis
-      - ollama
-      - zap
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      zap:
+        condition: service_started
     volumes:
       - ./be/app:/app/app
+      - ./be/alembic:/app/alembic
+      - ./be/alembic.ini:/app/alembic.ini
+    entrypoint: ["/app/entrypoint.sh"]
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]

@@ -26,6 +26,9 @@ class Finding(Base):
     owasp: Mapped[str | None] = mapped_column(String(50))
     false_positive_score: Mapped[float | None] = mapped_column(Float)
     risk_score: Mapped[float | None] = mapped_column(Float)
+    cvss_score: Mapped[float | None] = mapped_column(Float)
+    cvss_vector: Mapped[str | None] = mapped_column(String(100))
+    duplicate_group: Mapped[str | None] = mapped_column(String(100))
     remediation: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

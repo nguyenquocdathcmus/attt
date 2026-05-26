@@ -1,10 +1,18 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
-RUN npm install
+# ── Dependencies ──────────────────────────────────────────────────────────────
+# Copy lock files trước — layer này chỉ rebuild khi package*.json thay đổi
+COPY package.json package-lock.json* ./
 
+# Cache node_modules giữa các lần build
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline
+
+# ── Application code ──────────────────────────────────────────────────────────
 COPY . .
 
 EXPOSE 3000

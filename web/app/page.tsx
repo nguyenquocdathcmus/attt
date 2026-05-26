@@ -398,6 +398,8 @@ function ScanningStep({ scan, onCompleted, onFailed }: {
   const [wsMsg, setWsMsg] = useState<WsMsg>({ status: "queued" });
   const [log, setLog] = useState<string[]>([]);
   const [failError, setFailError] = useState<string | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   // Tick every second for live elapsed display
@@ -429,6 +431,8 @@ function ScanningStep({ scan, onCompleted, onFailed }: {
         } catch (e) {
           setFailError(e instanceof Error ? e.message : "Failed to load results");
         }
+      } else if (msg.status === "cancelled") {
+        setCancelled(true);
       } else if (msg.status === "failed") {
         setFailError("Scanner task failed. The target may be unreachable or ZAP timed out.");
       }
@@ -462,6 +466,16 @@ function ScanningStep({ scan, onCompleted, onFailed }: {
     return () => { ws.close(); };
   }, [scan.id, onCompleted]);
 
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      await apiPost(`/api/v1/scans/${scan.id}/cancel`, {});
+      setCancelled(true);
+    } catch (e) {
+      setCancelling(false);
+    }
+  };
+
   const elapsedSec = wsMsg.started_at
     ? Math.floor((now - new Date(wsMsg.started_at).getTime()) / 1000)
     : null;
@@ -475,6 +489,36 @@ function ScanningStep({ scan, onCompleted, onFailed }: {
     { label: "Active Scan", active: wsMsg.status === "running", done: wsMsg.status === "completed" },
     { label: "Saving",      active: false,                      done: wsMsg.status === "completed" },
   ];
+
+  if (cancelled) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <StepBreadcrumb step="scanning" />
+          <div className="mt-6 rounded-2xl border border-slate-600/40 bg-slate-800/30 p-8">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">⏹</span>
+              <div>
+                <h2 className="text-lg font-bold text-white">Scan Cancelled</h2>
+                <p className="text-sm text-slate-400">{scan.scanner.toUpperCase()} · {scan.id.slice(0, 8)}</p>
+              </div>
+            </div>
+            <div className="rounded-lg bg-slate-800/60 border border-slate-700/30 px-4 py-3 mb-6 space-y-1 text-xs text-slate-400">
+              {wsMsg.started_at && <p>Started: {formatDate(wsMsg.started_at)}</p>}
+              {elapsedStr && <p>Ran for: {elapsedStr}</p>}
+              {(wsMsg.findings_count ?? 0) > 0 && (
+                <p>Partial findings collected: <span className="text-white font-semibold">{wsMsg.findings_count}</span></p>
+              )}
+            </div>
+            <Button onClick={onFailed}
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold">
+              ← New Scan
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (failError) {
     return (
@@ -576,7 +620,7 @@ function ScanningStep({ scan, onCompleted, onFailed }: {
           </div>
 
           {/* Live log */}
-          <div className="rounded-lg bg-slate-950/60 border border-slate-800 p-3">
+          <div className="rounded-lg bg-slate-950/60 border border-slate-800 p-3 mb-4">
             <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">Live log</p>
             <div className="font-mono text-xs text-slate-400 space-y-0.5 max-h-40 overflow-y-auto">
               {log.length === 0
@@ -585,6 +629,19 @@ function ScanningStep({ scan, onCompleted, onFailed }: {
               }
             </div>
           </div>
+
+          {/* Cancel */}
+          {(wsMsg.status === "queued" || wsMsg.status === "running") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="w-full text-slate-500 hover:text-red-400 hover:bg-red-500/5 border border-slate-700/50 text-xs"
+            >
+              {cancelling ? "Stopping…" : "⏹ Stop Scan"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

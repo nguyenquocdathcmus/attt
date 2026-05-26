@@ -16,6 +16,7 @@ def _wait_for_completion(
     scan_id: str,
     timeout_seconds: int,
     poll_seconds: int,
+    cancel_fn: Callable[[], bool] | None = None,
 ) -> None:
     start = time.time()
     while True:
@@ -24,6 +25,8 @@ def _wait_for_completion(
             return
         if time.time() - start > timeout_seconds:
             raise TimeoutError("ZAP scan timed out")
+        if cancel_fn and cancel_fn():
+            raise InterruptedError("Scan cancelled by user")
         time.sleep(poll_seconds)
 
 
@@ -140,7 +143,11 @@ def _ensure_context(zap: ZAPv2, target_url: str, cfg: dict) -> tuple[str, str | 
     return context_id, user_id
 
 
-def run(target_url: str, config: dict | None = None) -> dict[str, Any]:
+def run(
+    target_url: str,
+    config: dict | None = None,
+    cancel_fn: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
     cfg = config or {}
     timeout_seconds = int(cfg.get("timeout_seconds", 600))
     ajax_timeout = int(cfg.get("ajax_timeout_seconds", 300))
@@ -162,19 +169,34 @@ def run(target_url: str, config: dict | None = None) -> dict[str, Any]:
             spider_id = zap.spider.scan_as_user(context_id, user_id, target_url, True)
         else:
             spider_id = zap.spider.scan(target_url)
-        _wait_for_completion(zap.spider.status, spider_id, timeout_seconds, 2)
+        _wait_for_completion(zap.spider.status, spider_id, timeout_seconds, 2, cancel_fn)
 
     # AJAX Spider — required for Angular/React SPAs like Juice Shop
     if cfg.get("ajax_spider", False):
         _run_ajax_spider(zap, target_url, ajax_timeout)
 
     if cfg.get("active", True):
-        logger.info("Starting Active Scan on %s", target_url)
+        # Limit total scan and per-rule duration so timing-based rules (SQLi, etc.)
+        # don't run indefinitely. Defaults: 5 min total, 1 min per rule.
+        max_scan_mins = int(cfg.get("max_scan_duration_mins", 5))
+        max_rule_mins = int(cfg.get("max_rule_duration_mins", 1))
+        zap.ascan.set_option_max_scan_duration_in_mins(max_scan_mins)
+        zap.ascan.set_option_max_rule_duration_in_mins(max_rule_mins)
+
+        logger.info(
+            "Starting Active Scan on %s (max %dm, %dm/rule)",
+            target_url, max_scan_mins, max_rule_mins,
+        )
         if user_id:
             scan_id = zap.ascan.scan_as_user(context_id, user_id, target_url)
         else:
             scan_id = zap.ascan.scan(target_url)
-        _wait_for_completion(zap.ascan.status, scan_id, timeout_seconds, 5)
+        try:
+            _wait_for_completion(zap.ascan.status, scan_id, timeout_seconds, 5, cancel_fn)
+        except InterruptedError:
+            zap.ascan.stop_all_scans()
+            logger.info("ZAP active scan stopped by cancel request")
+            raise
 
     alerts = zap.core.alerts(baseurl=target_url)
     logger.info("ZAP scan complete: %d alerts", len(alerts))
