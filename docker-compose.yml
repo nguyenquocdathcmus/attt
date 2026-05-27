@@ -64,6 +64,7 @@ services:
       - JWT_SECRET=dev-secret
       - AUTH_ENABLED=true
       - LOG_LEVEL=INFO
+      - CORS_ORIGINS=http://localhost:3000
     ports:
       - "8000:8000"
     depends_on:
@@ -132,7 +133,34 @@ services:
     depends_on:
       - api
 
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.104.0
+    command: ["--config=/etc/otel-collector.yml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./infra/otel-collector/otel-collector.yml:/etc/otel-collector.yml:ro
+    depends_on:
+      - prometheus
+
 volumes:
   db_data:
   ollama_data:
   prometheus_data:
+  grafana_data:

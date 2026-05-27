@@ -26,7 +26,11 @@ class Settings(BaseSettings):
     # Auth
     jwt_secret: str = "change-me"
     access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = 7
     auth_enabled: bool = True
+
+    # CORS — space-separated origins, e.g. "http://localhost:3000 https://app.example.com"
+    cors_origins: str = "http://localhost:3000"
 
     log_level: str = "INFO"
 

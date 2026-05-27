@@ -1,0 +1,86 @@
+{
+  "uid": "attt-security",
+  "title": "ATTT — Security Operations",
+  "tags": ["attt", "security"],
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Exploit Attempts (1h)",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_exploit_attempts_total[1h])", "legendFormat": "Attempts"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Confirmed Exploits (1h)",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_exploit_attempts_total{outcome='confirmed'}[1h])", "legendFormat": "Confirmed"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}
+      }
+    },
+    {
+      "id": 3, "type": "stat", "title": "Policy Blocked (1h)",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_exploit_attempts_total{outcome='policy_blocked'}[1h])", "legendFormat": "Blocked"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Patches Generated (1h)",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_patch_generation_total{outcome='generated'}[1h])", "legendFormat": "Generated"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Patch Validation Pass Rate",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "sum(rate(attt_patch_generation_total{outcome='validated'}[5m])) / sum(rate(attt_patch_generation_total{outcome=~'generated|validated|rejected'}[5m]))",
+        "legendFormat": "Pass Rate"
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "unit": "percentunit"}
+    },
+    {
+      "id": 6, "type": "stat", "title": "Injection Detections (1h)",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_prompt_injection_detections_total[1h])", "legendFormat": "Detections"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}
+      }
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Exploit Attempts by Type (per 5m)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(attt_exploit_attempts_total[5m])*300", "legendFormat": "{{exploit_type}} — {{outcome}}"}
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Patch Generation by Outcome (per 5m)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(attt_patch_generation_total{outcome='generated'}[5m])*300", "legendFormat": "Generated"},
+        {"expr": "rate(attt_patch_generation_total{outcome='validated'}[5m])*300", "legendFormat": "Validated"},
+        {"expr": "rate(attt_patch_generation_total{outcome='rejected'}[5m])*300", "legendFormat": "Rejected"},
+        {"expr": "rate(attt_patch_generation_total{outcome='error'}[5m])*300", "legendFormat": "Error"}
+      ]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Auth Failures by Reason (per 5m)",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(attt_auth_failures_total[5m])*300", "legendFormat": "{{reason}}"}
+      ]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Rate Limit Hits by Endpoint (per 5m)",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(attt_rate_limit_hits_total[5m])*300", "legendFormat": "{{endpoint}}"}
+      ]
+    }
+  ]
+}

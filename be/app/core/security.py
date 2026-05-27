@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
@@ -12,6 +13,8 @@ from app.schemas.auth import TokenData, UserOut
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+
+_BLOCKLIST_PREFIX = "auth:blocklist:"
 
 
 def get_password_hash(password: str) -> str:
@@ -35,13 +38,52 @@ def authenticate_user(username: str, password: str, db: Session) -> UserOut | No
     return UserOut(username=user.username, roles=user.roles)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def _make_token(data: dict, expires_delta: timedelta) -> tuple[str, str]:
+    """Return (encoded_jwt, jti). jti is embedded in the token."""
+    jti = str(uuid.uuid4())
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
+    to_encode["jti"] = jti
+    to_encode["exp"] = datetime.now(timezone.utc) + expires_delta
+    token = jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
+    return token, jti
+
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    token, _ = _make_token(
+        data,
+        expires_delta or timedelta(minutes=settings.access_token_expire_minutes),
     )
-    to_encode["exp"] = expire
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
+    return token
+
+
+def create_token_pair(data: dict) -> tuple[str, str]:
+    """Return (access_token, refresh_token)."""
+    access, _ = _make_token(
+        {**data, "type": "access"},
+        timedelta(minutes=settings.access_token_expire_minutes),
+    )
+    refresh, _ = _make_token(
+        {**data, "type": "refresh"},
+        timedelta(days=settings.refresh_token_expire_days),
+    )
+    return access, refresh
+
+
+def _is_blocklisted(jti: str) -> bool:
+    try:
+        from app.core.cache import get_redis
+        return get_redis().exists(f"{_BLOCKLIST_PREFIX}{jti}") == 1
+    except Exception:
+        return False
+
+
+def blocklist_token(jti: str, ttl_seconds: int) -> None:
+    """Add a jti to the blocklist with the given TTL."""
+    try:
+        from app.core.cache import get_redis
+        get_redis().setex(f"{_BLOCKLIST_PREFIX}{jti}", ttl_seconds, "1")
+    except Exception:
+        pass
 
 
 def get_current_user(
@@ -60,8 +102,15 @@ def get_current_user(
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
         username: str | None = payload.get("sub")
         roles: list[str] = payload.get("roles", [])
-        if not username:
+        jti: str | None = payload.get("jti")
+        if not username or not jti:
             raise credentials_exc
+        if _is_blocklisted(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         token_data = TokenData(username=username, roles=roles)
     except JWTError as exc:
         raise credentials_exc from exc

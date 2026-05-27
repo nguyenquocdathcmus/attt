@@ -30,6 +30,8 @@ class Finding(Base):
     cvss_vector: Mapped[str | None] = mapped_column(String(100))
     duplicate_group: Mapped[str | None] = mapped_column(String(100))
     remediation: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+    ai_confidence: Mapped[float | None] = mapped_column(Float)
+    ai_confidence_tier: Mapped[str | None] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -73,6 +73,11 @@ class LLMGateway:
             cached = self._redis_get(cache_key)
             if cached is not None:
                 logger.debug("LLM cache hit key=%s", cache_key[:20])
+                try:
+                    from app.core.metrics import LLM_REQUESTS_TOTAL
+                    LLM_REQUESTS_TOTAL.labels(step="unknown", outcome="cache_hit").inc()
+                except Exception:
+                    pass
                 return cached
 
         result = self._call_with_retry(prompt, resolved_model, response_format)
@@ -98,11 +103,18 @@ class LLMGateway:
             try:
                 t0 = time.monotonic()
                 result = self._call_ollama(prompt, model, response_format)
-                elapsed = (time.monotonic() - t0) * 1000
+                elapsed = time.monotonic() - t0
                 logger.info(
                     "LLM call ok model=%s attempt=%d latency_ms=%.0f",
-                    model, attempt, elapsed,
+                    model, attempt, elapsed * 1000,
                 )
+                try:
+                    from app.core.metrics import LLM_REQUESTS_TOTAL, LLM_LATENCY_SECONDS
+                    outcome = "success" if attempt == 1 else "retry"
+                    LLM_REQUESTS_TOTAL.labels(step="unknown", outcome=outcome).inc()
+                    LLM_LATENCY_SECONDS.labels(model=model, step="unknown").observe(elapsed)
+                except Exception:
+                    pass
                 return result
 
             except httpx.TimeoutException as exc:
@@ -112,6 +124,11 @@ class LLMGateway:
                     "LLM timeout model=%s attempt=%d/%d retrying in %ds",
                     model, attempt, self._max_retries, wait,
                 )
+                try:
+                    from app.core.metrics import LLM_REQUESTS_TOTAL
+                    LLM_REQUESTS_TOTAL.labels(step="unknown", outcome="retry").inc()
+                except Exception:
+                    pass
                 time.sleep(wait)
 
             except httpx.HTTPStatusError as exc:
@@ -126,9 +143,19 @@ class LLMGateway:
                     time.sleep(wait)
                 else:
                     logger.error("LLM client error %d: %s", exc.response.status_code, exc)
+                    try:
+                        from app.core.metrics import LLM_REQUESTS_TOTAL
+                        LLM_REQUESTS_TOTAL.labels(step="unknown", outcome="error").inc()
+                    except Exception:
+                        pass
                     raise
 
         logger.error("LLM call failed after %d retries model=%s", self._max_retries, model)
+        try:
+            from app.core.metrics import LLM_REQUESTS_TOTAL
+            LLM_REQUESTS_TOTAL.labels(step="unknown", outcome="error").inc()
+        except Exception:
+            pass
         raise RuntimeError(
             f"LLM call failed after {self._max_retries} retries"
         ) from last_exc

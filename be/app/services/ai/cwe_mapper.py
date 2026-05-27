@@ -120,20 +120,12 @@ def _static_lookup(title: str) -> str | None:
 
 
 def _build_batch_prompt(findings: list[dict]) -> str:
+    from app.services.ai.prompt_registry import get_prompt
     items = [
         f'{i}: title="{f.get("title")}" desc="{str(f.get("description") or "")[:100]}"'
         for i, f in enumerate(findings)
     ]
-    listing = "\n".join(items)
-    return f"""You are a security expert. Map each finding to a CWE ID.
-
-Findings:
-{listing}
-
-Respond with ONLY a JSON array, no markdown, no explanation:
-[{{"index": 0, "cwe": "CWE-79"}}, {{"index": 1, "cwe": null}}, ...]
-
-Use null if you cannot determine the CWE confidently."""
+    return get_prompt("cwe_mapping_batch").render(listing="\n".join(items))
 
 
 def map_cwe(findings: list[dict]) -> list[dict]:

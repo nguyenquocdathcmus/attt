@@ -17,6 +17,7 @@ _LLM_SEVERITIES = {"Critical", "High", "Medium"}
 
 
 def _build_batch_prompt(findings: list[dict]) -> str:
+    from app.services.ai.prompt_registry import get_prompt
     items = []
     for i, f in enumerate(findings):
         evidence = f.get("evidence") or {}
@@ -24,14 +25,7 @@ def _build_batch_prompt(findings: list[dict]) -> str:
             f'{i}: title="{f.get("title")}" severity={f.get("severity")} '
             f'cwe={f.get("cwe","N/A")} url={evidence.get("url","N/A")}'
         )
-    listing = "\n".join(items)
-    return f"""You are a security expert. Score each finding's exploitability risk from 0.0 to 1.0.
-
-Findings:
-{listing}
-
-Respond with ONLY a JSON array indexed by finding number, no markdown:
-[{{"index": 0, "risk_score": 0.85}}, {{"index": 1, "risk_score": 0.4}}, ...]"""
+    return get_prompt("risk_prioritization_batch").render(listing="\n".join(items))
 
 
 def prioritize(findings: list[dict]) -> list[dict]:

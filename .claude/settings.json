@@ -12,7 +12,9 @@
       "Read(//usr/local/**)",
       "Bash(/Users/macone/Documents/projects/personal/mytools/.venv/bin/python -c ' *)",
       "Bash(chmod +x /Users/macone/Documents/projects/personal/attt/start.sh)",
-      "Bash(bash -c 'docker info 2>&1 | tail -5; echo \"exit=$?\"')"
+      "Bash(bash -c 'docker info 2>&1 | tail -5; echo \"exit=$?\"')",
+      "Bash(docker-compose ps *)",
+      "Bash(kill %1)"
     ]
   }
 }

@@ -1,0 +1,90 @@
+{
+  "uid": "attt-ai-pipeline",
+  "title": "ATTT — AI Pipeline",
+  "tags": ["attt", "ai"],
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "LLM Requests (1h)",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_llm_requests_total[1h])", "legendFormat": "Total"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 2, "type": "stat", "title": "Cache Hit Rate",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "sum(rate(attt_llm_requests_total{outcome='cache_hit'}[5m])) / sum(rate(attt_llm_requests_total[5m]))",
+        "legendFormat": "Hit Rate"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "unit": "percentunit",
+        "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 0.3}, {"color": "green", "value": 0.6}]}
+      }
+    },
+    {
+      "id": 3, "type": "stat", "title": "LLM Error Rate",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{
+        "expr": "sum(rate(attt_llm_requests_total{outcome='error'}[5m])) / sum(rate(attt_llm_requests_total[5m]))",
+        "legendFormat": "Error Rate"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "unit": "percentunit",
+        "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 0.05}, {"color": "red", "value": 0.2}]}
+      }
+    },
+    {
+      "id": 4, "type": "stat", "title": "Avg AI Confidence",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "histogram_quantile(0.5, rate(attt_llm_confidence_bucket[5m]))", "legendFormat": "Median Confidence"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "unit": "percentunit"}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Prompt Injection Detections (1h)",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "increase(attt_prompt_injection_detections_total[1h])", "legendFormat": "Detections"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}
+      }
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "LLM Latency by Step (p95)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (step, le) (rate(attt_llm_latency_seconds_bucket[5m])))", "legendFormat": "{{step}} p95"}
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "LLM Requests by Outcome (per 5m)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(attt_llm_requests_total{outcome='cache_hit'}[5m])*300", "legendFormat": "Cache Hit"},
+        {"expr": "rate(attt_llm_requests_total{outcome='success'}[5m])*300", "legendFormat": "Success"},
+        {"expr": "rate(attt_llm_requests_total{outcome='retry'}[5m])*300", "legendFormat": "Retry"},
+        {"expr": "rate(attt_llm_requests_total{outcome='error'}[5m])*300", "legendFormat": "Error"}
+      ]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "AI Confidence Distribution over Time",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, rate(attt_llm_confidence_bucket[5m]))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.50, rate(attt_llm_confidence_bucket[5m]))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.10, rate(attt_llm_confidence_bucket[5m]))", "legendFormat": "p10"}
+      ]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Prompt Usage by Template (per 5m)",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(attt_prompt_usage_total[5m])*300", "legendFormat": "{{prompt}} v{{version}}"}
+      ]
+    }
+  ]
+}

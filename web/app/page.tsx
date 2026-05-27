@@ -813,7 +813,9 @@ function AnalyzingStep({ scan, onDone }: { scan: Scan; onDone: (findings: Findin
     const poll = setInterval(async () => {
       try {
         const findings = await apiGet<Finding[]>(`/api/v1/findings?scan_id=${scan.id}`);
-        const aiDone = findings.some(f => f.risk_score !== null);
+        const hasRemediation = (r?: Finding["remediation"] | null) =>
+          !!(r && (r.summary || (r.steps && r.steps.length > 0) || (r.references && r.references.length > 0)));
+        const aiDone = findings.length === 0 || findings.every(f => hasRemediation(f.remediation));
         if (aiDone) {
           clearInterval(poll);
           onDone(findings);

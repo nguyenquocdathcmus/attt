@@ -31,6 +31,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Tách layer này ra: chỉ rebuild khi requirements.txt thay đổi
 COPY requirements.txt .
 
+# Install CPU-only torch to avoid pulling CUDA wheels during build
+ARG TORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --index-url "${TORCH_CPU_INDEX_URL}" torch
+
 # Cache pip packages tại /root/.cache/pip giữa các lần build
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt

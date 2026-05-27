@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def _build_batch_prompt(findings: list[dict]) -> str:
+    from app.services.ai.prompt_registry import get_prompt
     items = []
     for i, f in enumerate(findings):
         evidence = f.get("evidence") or {}
@@ -13,15 +14,7 @@ def _build_batch_prompt(findings: list[dict]) -> str:
             f'{i}: title="{f.get("title")}" confidence={evidence.get("confidence","N/A")} '
             f'evidence="{str(evidence.get("evidence",""))[:80]}"'
         )
-    listing = "\n".join(items)
-    return f"""You are a security expert reviewing automated scanner results.
-Estimate the false positive probability (0.0=definitely real, 1.0=definitely false positive) for each finding.
-
-Findings:
-{listing}
-
-Respond with ONLY a JSON array, no markdown:
-[{{"index": 0, "false_positive_score": 0.1}}, {{"index": 1, "false_positive_score": 0.7}}, ...]"""
+    return get_prompt("false_positive_batch").render(listing="\n".join(items))
 
 
 def analyze(findings: list[dict]) -> list[dict]:

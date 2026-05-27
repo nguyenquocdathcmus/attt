@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attt-beat
+  namespace: attt
+  labels:
+    app: attt-beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: attt-beat
+  template:
+    metadata:
+      labels:
+        app: attt-beat
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: beat
+          image: attt-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - app.core.celery_app.celery
+            - beat
+            - --loglevel=info
+          envFrom:
+            - configMapRef:
+                name: attt-config
+            - secretRef:
+                name: attt-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "250m"
+              memory: "512Mi"

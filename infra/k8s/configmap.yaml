@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: attt-config
+  namespace: attt
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3"
+  EMBEDDINGS_MODEL: "nomic-embed-text"
+  ZAP_BASE_URL: "http://zap:8080"
+  CORS_ORIGINS: "https://attt.example.com"
+  LLM_TIMEOUT: "120"
+  LLM_MAX_RETRIES: "3"
+  LLM_CACHE_TTL: "3600"
+  LLM_CACHE_ENABLED: "true"
+  OTEL_SERVICE_NAME: "attt-backend"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"

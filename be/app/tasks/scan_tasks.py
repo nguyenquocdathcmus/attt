@@ -13,6 +13,15 @@ from app.tasks.ai_tasks import analyze_scan
 logger = logging.getLogger(__name__)
 
 
+def _publish(scan_id: str, event: dict) -> None:
+    """Fire-and-forget Pub/Sub event for WebSocket clients."""
+    try:
+        from app.api.v1.routers.scans import publish_scan_event
+        publish_scan_event(scan_id, event)
+    except Exception as exc:
+        logger.debug("publish_scan_event skip: %s", exc)
+
+
 def _make_cancel_fn(session, scan_uuid):
     """Returns a callable that checks whether the scan has been cancelled in DB."""
     def is_cancelled() -> bool:
@@ -48,6 +57,14 @@ def start_scan(
     scan.status = "running"
     scan.started_at = datetime.now(timezone.utc)
     session.commit()
+    _publish(scan_id, {"status": "running", "scan_id": scan_id, "scanner": scanner})
+    try:
+        from app.core.metrics import SCAN_TOTAL, ACTIVE_SCANS_GAUGE
+        SCAN_TOTAL.labels(status="running").inc()
+        ACTIVE_SCANS_GAUGE.inc()
+    except Exception:
+        pass
+    _t0 = datetime.now(timezone.utc)
 
     cancel_fn = _make_cancel_fn(session, scan_uuid)
 
@@ -77,8 +94,25 @@ def start_scan(
         scan.status = "completed"
         scan.finished_at = datetime.now(timezone.utc)
         session.commit()
+        try:
+            from app.core.metrics import SCAN_TOTAL, SCAN_DURATION_SECONDS, SCAN_FINDINGS_TOTAL, ACTIVE_SCANS_GAUGE
+            SCAN_TOTAL.labels(status="complete").inc()
+            ACTIVE_SCANS_GAUGE.dec()
+            duration = (scan.finished_at - scan.started_at).total_seconds()
+            SCAN_DURATION_SECONDS.labels(scanner=scanner).observe(duration)
+            for item in normalized:
+                SCAN_FINDINGS_TOTAL.labels(severity=(item.get("severity") or "info").lower()).inc()
+        except Exception:
+            pass
+        _publish(scan_id, {
+            "status": "completed",
+            "scan_id": scan_id,
+            "findings_count": len(normalized),
+            "finished_at": scan.finished_at.isoformat(),
+        })
 
         analyze_scan.apply_async((scan_id,), queue="analysis", priority=5)
+        _publish(scan_id, {"status": "ai_pending", "scan_id": scan_id})
         return {"scan_id": scan_id, "status": scan.status, "count": len(normalized)}
 
     except InterruptedError:
@@ -90,6 +124,13 @@ def start_scan(
             scan.finished_at = datetime.now(timezone.utc)
             session.commit()
         logger.info("Scan %s was cancelled by user", scan_id)
+        _publish(scan_id, {"status": "cancelled", "scan_id": scan_id})
+        try:
+            from app.core.metrics import SCAN_TOTAL, ACTIVE_SCANS_GAUGE
+            SCAN_TOTAL.labels(status="cancelled").inc()
+            ACTIVE_SCANS_GAUGE.dec()
+        except Exception:
+            pass
         return {"scan_id": scan_id, "status": "cancelled"}
 
     except Exception as exc:
@@ -97,6 +138,13 @@ def start_scan(
         scan.status = "failed"
         scan.finished_at = datetime.now(timezone.utc)
         session.commit()
+        _publish(scan_id, {"status": "failed", "scan_id": scan_id, "error": str(exc)})
+        try:
+            from app.core.metrics import SCAN_TOTAL, ACTIVE_SCANS_GAUGE
+            SCAN_TOTAL.labels(status="failed").inc()
+            ACTIVE_SCANS_GAUGE.dec()
+        except Exception:
+            pass
         raise
 
     finally:

@@ -9,6 +9,7 @@ _LLM_SEVERITIES = {"Critical", "High"}
 
 
 def _build_batch_prompt(findings: list[dict]) -> str:
+    from app.services.ai.prompt_registry import get_prompt
     items = []
     for i, f in enumerate(findings):
         evidence = f.get("evidence") or {}
@@ -17,22 +18,7 @@ def _build_batch_prompt(findings: list[dict]) -> str:
             f'owasp={f.get("owasp","N/A")} param="{evidence.get("param","N/A")}" '
             f'solution_hint="{str(evidence.get("solution",""))[:120]}"'
         )
-    listing = "\n".join(items)
-    return f"""You are a security engineer. Provide remediation for each vulnerability below.
-
-Findings:
-{listing}
-
-Respond with ONLY a JSON array, no markdown:
-[
-  {{
-    "index": 0,
-    "summary": "<one sentence fix>",
-    "steps": ["<step 1>", "<step 2>", "<step 3>"],
-    "references": ["<OWASP or CWE link>"]
-  }},
-  ...
-]"""
+    return get_prompt("remediation_batch").render(listing="\n".join(items))
 
 
 def _template(finding: dict) -> dict:

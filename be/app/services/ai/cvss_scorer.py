@@ -17,6 +17,7 @@ _LLM_SEVERITIES = {"Critical", "High", "Medium"}
 
 
 def _build_batch_prompt(findings: list[dict]) -> str:
+    from app.services.ai.prompt_registry import get_prompt
     items = []
     for i, f in enumerate(findings):
         ev = f.get("evidence") or {}
@@ -25,28 +26,7 @@ def _build_batch_prompt(findings: list[dict]) -> str:
             f'cwe={f.get("cwe", "N/A")} param="{ev.get("param", "N/A")}" '
             f'auth_required={ev.get("auth_required", False)}'
         )
-    listing = "\n".join(items)
-    return f"""You are a security expert calculating CVSS v3.1 base scores.
-For each finding, determine the CVSS vector and base score.
-
-Findings:
-{listing}
-
-Respond with ONLY a JSON array, no markdown:
-[
-  {{"index": 0, "score": 8.1, "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N"}},
-  ...
-]
-
-Rules:
-- score must be 0.0–10.0
-- vector must start with CVSS:3.1/
-- AV: N=Network, A=Adjacent, L=Local, P=Physical
-- AC: L=Low, H=High
-- PR: N=None, L=Low, H=High
-- UI: N=None, R=Required
-- S: U=Unchanged, C=Changed
-- C/I/A: N=None, L=Low, H=High"""
+    return get_prompt("cvss_scoring_batch").render(listing="\n".join(items))
 
 
 
